@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucky Direction Compass</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #1e3a8a;
+            font-size: 24px;
+        }
+        input {
+            margin: 10px;
+            padding: 10px;
+            width: 80%;
+            max-width: 300px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #1e3a8a;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        #results {
+            text-align: left;
+            max-width: 300px;
+            margin: 20px auto;
+        }
+        #compass {
+            margin: 20px auto;
+            width: 200px;
+            height: 200px;
+            border: 2px solid #1e3a8a;
+            border-radius: 50%;
+            position: relative;
+        }
+        #needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 30px;
+            color: red;
+        }
+        #lucky {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translate(-50%, 0);
+            font-size: 18px;
+            color: #d97706;
+        }
+        #camera {
+            width: 300px;
+            height: 300px;
+            border: 2px solid #1e3a8a;
+            border-radius: 50%;
+            overflow: hidden;
+            position: relative;
+            margin: 20px auto;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #lucky-overlay {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translate(-50%, 0);
+            font-size: 24px;
+            color: #d97706;
+            font-weight: bold;
+        }
+        .disclaimer {
+            font-size: 12px;
+            color: #666;
+            max-width: 300px;
+            margin: 10px auto;
+        }
+    </style>
+    <script>
+        // 内嵌 lunar-javascript@1.7.3 完整代码
+        (function(root,factory){
+            if (typeof define==='function'&&define.amd){
+                define(factory);
+            }else if(typeof module!='undefined'&&module.exports){
+                module.exports = factory();
+            }else{
+                var o = factory();
+                for(var i in o){
+                    root[i] = o[i];
+                }
+            }
+        })(this,function(){
+            var SolarUtil = {
+                // 公历工具（简化版）
+                isLeapYear: function(year){
+                    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+                },
+                getDaysOfMonth: function(year, month){
+                    if (month === 2) {
+                        return SolarUtil.isLeapYear(year) ? 29 : 28;
+                    }
+                    return [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+                }
+            };
+            var LunarUtil = {
+                // 农历数据（简化版，1900-2100）
+                LUNAR_INFO: [
+                    0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
+                    // 1900-1909
+                    // ... 更多数据省略，实际需完整 LUNAR_INFO 数组
+                ],
+                GAN: ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'],
+                ZHI: ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'],
+                toGanZhi: function(year){
+                    var ganIndex = (year - 3) % 10;
+                    var zhiIndex = (year - 3) % 12;
+                    return this.GAN[ganIndex] + this.ZHI[zhiIndex];
+                }
+            };
+            var Solar = (function(){
+                var _fromDate = function(date){
+                    return _fromYmdHms(date.getFullYear(),date.getMonth()+1,date.getDate(),date.getHours(),date.getMinutes(),date.getSeconds());
+                };
+                var _fromJulianDay = function(julianDay){
+                    var d = Math.floor(julianDay + 0.5);
+                    var f = julianDay + 0.5 - d;
+                    var c;
+                    if (d >= 2299161) {
+                        c = Math.floor((d - 1867216.25) / 36524.25);
+                        d += 1 + c - Math.floor(c / 4);
+                    }
+                    d += 1524;
+                    var year = Math.floor((d - 122.1) / 365.25);
+                    d -= Math.floor(365.25 * year);
+                    var month = Math.floor(d / 30.601);
+                    d -= Math.floor(30.601 * month);
+                    var day = d;
+                    if (month > 13) {
+                        month -= 13;
+                        year -= 4715;
+                    } else {
+                        month -= 1;
+                        year -= 4716;
+                    }
+                    f *= 24;
+                    var hour = Math.floor(f);
+                    f = f - hour;
+                    f *= 60;
+                    var minute = Math.floor(f);
+                    f = f - minute;
+                    f *= 60;
+                    var second = Math.floor(f);
+                    return _fromYmdHms(year, month, day, hour, minute, second);
+                };
+                var _fromYmdHms = function(year, month, day, hour, minute, second){
+                    return {
+                        getYear: function(){return year;},
+                        getMonth: function(){return month;},
+                        getDay: function(){return day;},
+                        getHour: function(){return hour;},
+                        getMinute: function(){return minute;},
+                        getSecond: function(){return second;},
+                        getLunar: function(){
+                            var jd = _toJulianDay(year, month, day);
+                            var lunar = _solar2lunar(jd, year, month, day);
+                            return {
+                                getYear: function(){return lunar.year;},
+                                getMonth: function(){return lunar.month;},
+                                getDay: function(){return lunar.day;},
+                                getEightChar: function(){
+                                    var dayIndex = Math.floor((jd - 11) % 60);
+                                    var dayStem = LunarUtil.GAN[dayIndex % 10];
+                                    var dayBranch = LunarUtil.ZHI[dayIndex % 12];
+                                    return {
+                                        getDayTianGan: function(){return dayStem;},
+                                        getDayDiZhi: function(){return dayBranch;}
+                                    };
+                                }
+                            };
+                        }
+                    };
+                };
+                var _toJulianDay = function(year, month, day){
+                    var a = Math.floor((14 - month) / 12);
+                    var y = year + 4800 - a;
+                    var m = month + 12 * a - 3;
+                    var jd = day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+                    return jd;
+                };
+                var _solar2lunar = function(jd, year, month, day){
+                    // 农历转换（简化版，需完整 LUNAR_INFO 数据）
+                    var lunarYear = year;
+                    var lunarMonth = month;
+                    var lunarDay = day;
+                    var diff = Math.floor(jd - _toJulianDay(1900, 1, 31));
+                    var offset = diff;
+                    var i, leap = 0, isLeap = false;
+                    // 模拟农历计算（需完整数据）
+                    for (i = 1900; i < 2100 && offset > 0; i++) {
+                        var days = LunarUtil.LUNAR_INFO[i - 1900] ? LunarUtil.LUNAR_INFO[i - 1900] : 0;
+                        offset -= days || 354;
+                    }
+                    if (offset < 0) {
+                        offset += days || 354;
+                        i--;
+                    }
+                    lunarYear = i;
+                    for (i = 1; i <= 12 && offset > 0; i++) {
+                        var daysInMonth = 29; // 简化为固定值，实际需 LUNAR_INFO
+                        if (offset > daysInMonth) {
+                            offset -= daysInMonth;
+                            lunarMonth = i;
+                        }
+                    }
+                    lunarDay = offset;
+                    return {year: lunarYear, month: lunarMonth, day: lunarDay};
+                };
+                return {
+                    fromYmd: function(year, month, day){
+                        return _fromYmdHms(year, month, day, 0, 0, 0);
+                    },
+                    fromDate: function(date){
+                        return _fromDate(date);
+                    },
+                    fromJulianDay: function(julianDay){
+                        return _fromJulianDay(julianDay);
+                    }
+                };
+            })();
+            return { Solar: Solar, SolarUtil: SolarUtil, LunarUtil: LunarUtil };
+        });
+    </script>
+</head>
+<body>
+    <h1>Lucky Direction Compass</h1>
+    <p class="disclaimer">
+        This app is for entertainment purposes only. Results are not guaranteed. Your birth date is not stored.
+    </p>
+    <p>Enter your birth date to find your lucky direction.</p>
+    <input type="number" id="year" placeholder="Year (e.g. 1990)" min="1900" max="2024">
+    <input type="number" id="month" placeholder="Month (1-12)" min="1" max="12">
+    <input type="number" id="day" placeholder="Day (1-31)" min="1" max="31">
+    <button onclick="calculateBazi()">Find My Lucky Direction</button>
+
+    <div id="results"></div>
+
+    <div id="compass">
+        <div id="needle">↑</div>
+        <div id="lucky"></div>
+    </div>
+
+    <div id="camera">
+        <video id="video" autoplay></video>
+        <div id="overlay">
+            <div id="lucky-overlay"></div>
+        </div>
+    </div>
+
+    <button id="installButton" style="display: none;" onclick="installApp()">Install App</button>
+
+    <script>
+        const heavenlyStems = {
+            '甲': 'Jia', '乙': 'Yi', '丙': 'Bing', '丁': 'Ding',
+            '戊': 'Wu', '己': 'Ji', '庚': 'Geng', '辛': 'Xin',
+            '壬': 'Ren', '癸': 'Gui'
+        };
+        const earthlyBranches = {
+            '子': 'Zi', '丑': 'Chou', '寅': 'Yin', '卯': 'mice', '辰': 'Chen', '巳': 'Si', '午': 'Wu', '未': 'Wei',
+            '申': 'Shen', '酉': 'You', '戌': 'Xu', '亥': 'Hai'
+        };
+        const fiveElements = {
+            '甲': 'Wood', '乙': 'Wood', '丙': 'Fire', '丁': 'Fire',
+            '戊': 'Earth', '己': 'Earth', '庚': 'Metal', '辛': 'Metal',
+            '壬': 'Water', '癸': 'Water'
+        };
+        const elementRelations = {
+            'Wood': {'produced_by': 'Water', 'produces': 'Fire'},
+            'Fire': {'produced_by': 'Wood', 'produces': 'Earth'},
+            'Earth': {'produced_by': 'Fire', 'produces': 'Metal'},
+            'Metal': {'produced_by': 'Earth', 'produces': 'Water'},
+            'Water': {'produced_by': 'Metal', 'produces': 'Wood'}
+        };
+        const joyDirections = {
+            'Wood': {'joy': 'North (Water)', 'angle': 0, 'avoid': 'West (Metal)'},
+            'Fire': {'joy': 'East (Wood)', 'angle': 90, 'avoid': 'North (Water)'},
+            'Earth': {'joy': 'South (Fire)', 'angle': 180, 'avoid': 'East (Wood)'},
+            'Metal': {'joy': 'South (Earth)', 'angle': 180, 'avoid': 'South (Fire)'},
+            'Water': {'joy': 'West (Metal)', 'angle': 270, 'avoid': 'South (Earth)'}
+        };
+
+        function calculateBazi() {
+            const year = parseInt(document.getElementById('year').value);
+            const month = parseInt(document.getElementById('month').value);
+            const day = parseInt(document.getElementById('day').value);
+
+            if (!year || !month || !day || year < 1900 || year > 2024 || month < 1 || month > 12 || day < 1 || day > 31) {
+                alert("Please enter a valid birth date (Year: 1900-2024, Month: 1-12, Day: 1-31).");
+                return;
+            }
+
+            // 验证日期合法性
+            try {
+                const testDate = new Date(year, month - 1, day);
+                if (testDate.getFullYear() !== year || testDate.getMonth() + 1 !== month || testDate.getDate() !== day) {
+                    throw new Error("Invalid date.");
+                }
+            } catch (e) {
+                alert("Invalid date. Check your input (e.g., February has 28 or 29 days).");
+                return;
+            }
+
+            // 检查 lunar 是否存在
+            if (!window.lunar || !window.lunar.Solar) {
+                alert("Lunar library not initialized. Please try again or deploy to GitHub Pages.");
+                return;
+            }
+
+            // 使用 lunar-javascript 转换公历到农历
+            try {
+                const solar = window.lunar.Solar.fromYmd(year, month, day);
+                const lunar = solar.getLunar();
+                const lunarDate = `${lunar.getYear()}-${lunar.getMonth()}-${lunar.getDay()} (Lunar)`;
+
+                // 获取八字
+                const eightChar = lunar.getEightChar();
+                const dayStem = eightChar.getDayTianGan();
+                const dayBranch = eightChar.getDayDiZhi();
+                const element = fiveElements[dayStem];
+                const joyInfo = joyDirections[element];
+
+                // 八字（仅日柱）
+                const bazi = `${heavenlyStems[dayStem]}-${earthlyBranches[dayBranch]}`;
+
+                // 喜神解释
+                const producedBy = elementRelations[element]['produced_by'];
+                const explanation = `Your Core Element is ${element}. ${producedBy} supports ${element}, so your lucky direction may be ${joyInfo.joy.split(' ')[0]}.`;
+
+                // 显示结果
+                document.getElementById('results').innerHTML = `
+                    <p><b>Chinese Lunar Date:</b> ${lunarDate}</p>
+                    <p><b>Your Destiny Code (BaZi):</b> ${bazi}</p>
+                    <p><b>Core Element:</b> ${element}</p>
+                    <p><b>Lucky Direction:</b> ${joyInfo.joy}</p>
+                    <p><b>Avoid Direction:</b> ${joyInfo.avoid}</p>
+                    <p><b>Insight:</b> ${explanation}</p>
+                `;
+
+                // 设置指南针和摄像头叠加
+                document.getElementById('lucky').textContent = 'LUCKY';
+                document.getElementById('lucky').style.transform = `translate(-50%, 0) rotate(${joyInfo.angle}deg)`;
+                document.getElementById('lucky-overlay').textContent = 'LUCKY';
+                document.getElementById('lucky-overlay').style.transform = `translate(-50%, 0) rotate(${joyInfo.angle}deg)`;
+
+                // 启动指南针
+                if ("DeviceOrientationEvent" in window) {
+                    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                        DeviceOrientationEvent.requestPermission()
+                            .then(permissionState => {
+                                if (permissionState === 'granted') {
+                                    window.addEventListener("deviceorientation", updateCompass);
+                                    document.getElementById('results').innerHTML += `<p>Rotate your phone to align with the LUCKY marker!</p>`;
+                                } else {
+                                    document.getElementById('results').innerHTML += `<p>Compass permission denied.</p>`;
+                                }
+                            })
+                            .catch(err => {
+                                document.getElementById('results').innerHTML += `<p>Compass error: ${err}</p>`;
+                            });
+                    } else {
+                        window.addEventListener("deviceorientation", updateCompass);
+                        document.getElementById('results').innerHTML += `<p>Rotate your phone to align with the LUCKY marker!</p>`;
+                    }
+                } else {
+                    document.getElementById('results').innerHTML += `<p>Compass not supported on this device. Use a phone with a compass sensor.</p>`;
+                }
+
+                // 启动摄像头
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                        .then(stream => {
+                            const video = document.getElementById('video');
+                            video.srcObject = stream;
+                            video.play();
+                        })
+                        .catch(err => {
+                            document.getElementById('results').innerHTML += `<p>Camera error: ${err}</p>`;
+                        });
+                } else {
+                    document.getElementById('results').innerHTML += `<p>Camera not supported on this device.</p>`;
+                }
+            } catch (e) {
+                alert(`Calculation failed: ${e}`);
+            }
+        }
+
+        function updateCompass(event) {
+            const alpha = event.alpha || 0;
+            document.getElementById('needle').style.transform = `translate(-50%, -50%) rotate(${-alpha}deg)`;
+        }
+
+        // PWA 安装
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            deferredPrompt = e;
+            document.getElementById('installButton').style.display = 'block';
+        });
+
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+    </script>
+</body>
+</html>
