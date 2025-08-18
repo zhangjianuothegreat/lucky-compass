@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lucky Direction Compass</title>
     <link rel="manifest" href="manifest.json">
+    <!-- 临时加个 favicon，防止 404 -->
+    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==" type="image/png">
     <style>
         body {
             background-color: #f3f4f6;
@@ -100,121 +102,164 @@
             margin: 10px auto;
         }
     </style>
+</head>
+<body>
+    <h1>Lucky Direction Compass</h1>
+    <p class="disclaimer">
+        This app is for entertainment purposes only. Results are not guaranteed. Your birth date is not stored.
+    </p>
+    <p>Enter your birth date to find your lucky direction.</p>
+    <input type="number" id="year" placeholder="Year (e.g. 1990)" min="1900" max="2024">
+    <input type="number" id="month" placeholder="Month (1-12)" min="1" max="12">
+    <input type="number" id="day" placeholder="Day (1-31)" min="1" max="31">
+    <button onclick="calculateBazi()">Find My Lucky Direction</button>
+
+    <div id="results"></div>
+
+    <div id="compass">
+        <div id="needle">↑</div>
+        <div id="lucky"></div>
+    </div>
+
+    <div id="camera">
+        <video id="video" autoplay></video>
+        <div id="overlay">
+            <div id="lucky-overlay"></div>
+        </div>
+    </div>
+
+    <button id="installButton" style="display: none;" onclick="installApp()">Install App</button>
+
     <script>
-        async function calculateBazi() {
-            const year = parseInt(document.getElementById('year').value);
-            const month = parseInt(document.getElementById('month').value);
-            const day = parseInt(document.getElementById('day').value);
+        document.addEventListener('DOMContentLoaded', () => {
+            async function calculateBazi() {
+                const year = parseInt(document.getElementById('year').value);
+                const month = parseInt(document.getElementById('month').value);
+                const day = parseInt(document.getElementById('day').value);
 
-            if (!year || !month || !day || year < 1900 || year > 2024 || month < 1 || month > 12 || day < 1 || day > 31) {
-                alert("Please enter a valid birth date (Year: 1900-2024, Month: 1-12, Day: 1-31).");
-                return;
-            }
-
-            try {
-                const testDate = new Date(year, month - 1, day);
-                if (testDate.getFullYear() !== year || testDate.getMonth() + 1 !== month || testDate.getDate() !== day) {
-                    throw new Error("Invalid date.");
+                if (!year || !month || !day || year < 1900 || year > 2024 || month < 1 || month > 12 || day < 1 || day > 31) {
+                    alert("Please enter a valid birth date (Year: 1900-2024, Month: 1-12, Day: 1-31).");
+                    return;
                 }
-            } catch (e) {
-                alert("Invalid date. Check your input (e.g., February has 28 or 29 days).");
-                return;
-            }
 
-            // 模拟数据（替换 API 调用）
-            const data = {
-                lunar_date: `${year}-${month}-${day} (Simulated Lunar)`,
-                bazi: "Jia-Zi (Simulated)",
-                element: "Wood",
-                joy_direction: "North (Water)",
-                avoid_direction: "West (Metal)",
-                explanation: "Your Core Element is Wood. Water supports Wood, so your lucky direction may be North."
-            };
-
-            // 显示结果
-            document.getElementById('results').innerHTML = `
-                <p><b>Chinese Lunar Date:</b> ${data.lunar_date}</p>
-                <p><b>Your Destiny Code (BaZi):</b> ${data.bazi}</p>
-                <p><b>Core Element:</b> ${data.element}</p>
-                <p><b>Lucky Direction:</b> ${data.joy_direction}</p>
-                <p><b>Avoid Direction:</b> ${data.avoid_direction}</p>
-                <p><b>Insight:</b> ${data.explanation}</p>
-            `;
-
-            // 设置指南针和摄像头叠加
-            document.getElementById('lucky').textContent = 'LUCKY';
-            document.getElementById('lucky-overlay').textContent = 'LUCKY';
-            const joyAngle = { 'North': 0, 'East': 90, 'South': 180, 'West': 270 }[data.joy_direction.split(' ')[0]] || 0;
-
-            // 启动指南针
-            if ("DeviceOrientationEvent" in window) {
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(permissionState => {
-                            if (permissionState === 'granted') {
-                                window.addEventListener("deviceorientation", (event) => {
-                                    const alpha = event.alpha || 0; // 0-360°，北为0
-                                    const adjustedAngle = (360 - alpha + joyAngle) % 360;
-                                    document.getElementById('needle').style.transform = `translate(-50%, -50%) rotate(${adjustedAngle}deg)`;
-                                    document.getElementById('lucky').style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
-                                    document.getElementById('lucky-overlay').style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
-                                });
-                                document.getElementById('results').innerHTML += `<p>Rotate your phone to align with the LUCKY marker!</p>`;
-                            } else {
-                                document.getElementById('results').innerHTML += `<p>Compass permission denied.</p>`;
-                            }
-                        })
-                        .catch(err => {
-                            document.getElementById('results').innerHTML += `<p>Compass error: ${err}</p>`;
-                        });
-                } else {
-                    window.addEventListener("deviceorientation", (event) => {
-                        const alpha = event.alpha || 0;
-                        const adjustedAngle = (360 - alpha + joyAngle) % 360;
-                        document.getElementById('needle').style.transform = `translate(-50%, -50%) rotate(${adjustedAngle}deg)`;
-                        document.getElementById('lucky').style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
-                        document.getElementById('lucky-overlay').style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
-                    });
-                    document.getElementById('results').innerHTML += `<p>Rotate your phone to align with the LUCKY marker!</p>`;
-                }
-            } else {
-                document.getElementById('results').innerHTML += `<p>Compass not supported on this device. Use a phone with a compass sensor.</p>`;
-            }
-
-            // 启动摄像头
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(stream => {
-                        const video = document.getElementById('video');
-                        video.srcObject = stream;
-                        video.play();
-                    })
-                    .catch(err => {
-                        document.getElementById('results').innerHTML += `<p>Camera error: ${err}</p>`;
-                    });
-            } else {
-                document.getElementById('results').innerHTML += `<p>Camera not supported on this device.</p>`;
-            }
-        }
-
-        // PWA 安装
-        let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            deferredPrompt = e;
-            document.getElementById('installButton').style.display = 'block';
-        });
-
-        function installApp() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the install');
+                try {
+                    const testDate = new Date(year, month - 1, day);
+                    if (testDate.getFullYear() !== year || testDate.getMonth() + 1 !== month || testDate.getDate() !== day) {
+                        throw new Error("Invalid date.");
                     }
-                    deferredPrompt = null;
-                });
+                } catch (e) {
+                    alert("Invalid date. Check your input (e.g., February has 28 or 29 days).");
+                    return;
+                }
+
+                // 模拟数据
+                const data = {
+                    lunar_date: `${year}-${month}-${day} (Simulated Lunar)`,
+                    bazi: "Jia-Zi (Simulated)",
+                    element: "Wood",
+                    joy_direction: "North (Water)",
+                    avoid_direction: "West (Metal)",
+                    explanation: "Your Core Element is Wood. Water supports Wood, so your lucky direction may be North."
+                };
+
+                // 显示结果
+                const resultsDiv = document.getElementById('results');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = `
+                        <p><b>Chinese Lunar Date:</b> ${data.lunar_date}</p>
+                        <p><b>Your Destiny Code (BaZi):</b> ${data.bazi}</p>
+                        <p><b>Core Element:</b> ${data.element}</p>
+                        <p><b>Lucky Direction:</b> ${data.joy_direction}</p>
+                        <p><b>Avoid Direction:</b> ${data.avoid_direction}</p>
+                        <p><b>Insight:</b> ${data.explanation}</p>
+                    `;
+                }
+
+                // 设置指南针和摄像头叠加
+                const lucky = document.getElementById('lucky');
+                const luckyOverlay = document.getElementById('lucky-overlay');
+                const needle = document.getElementById('needle');
+                if (lucky && luckyOverlay && needle) {
+                    lucky.textContent = 'LUCKY';
+                    luckyOverlay.textContent = 'LUCKY';
+                    const joyAngle = { 'North': 0, 'East': 90, 'South': 180, 'West': 270 }[data.joy_direction.split(' ')[0]] || 0;
+
+                    // 启动指南针
+                    if ("DeviceOrientationEvent" in window) {
+                        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                            DeviceOrientationEvent.requestPermission()
+                                .then(permissionState => {
+                                    if (permissionState === 'granted') {
+                                        window.addEventListener("deviceorientation", (event) => {
+                                            const alpha = event.alpha || 0;
+                                            const adjustedAngle = (360 - alpha + joyAngle) % 360;
+                                            needle.style.transform = `translate(-50%, -50%) rotate(${adjustedAngle}deg)`;
+                                            lucky.style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
+                                            luckyOverlay.style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
+                                        });
+                                        if (resultsDiv) resultsDiv.innerHTML += `<p>Rotate your phone to align with the LUCKY marker!</p>`;
+                                    } else {
+                                        if (resultsDiv) resultsDiv.innerHTML += `<p>Compass permission denied.</p>`;
+                                    }
+                                })
+                                .catch(err => {
+                                    if (resultsDiv) resultsDiv.innerHTML += `<p>Compass error: ${err}</p>`;
+                                });
+                        } else {
+                            window.addEventListener("deviceorientation", (event) => {
+                                const alpha = event.alpha || 0;
+                                const adjustedAngle = (360 - alpha + joyAngle) % 360;
+                                needle.style.transform = `translate(-50%, -50%) rotate(${adjustedAngle}deg)`;
+                                lucky.style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
+                                luckyOverlay.style.transform = `translate(-50%, 0) rotate(${joyAngle}deg)`;
+                            });
+                            if (resultsDiv) resultsDiv.innerHTML += `<p>Rotate your phone to align with the LUCKY marker!</p>`;
+                        }
+                    } else {
+                        if (resultsDiv) resultsDiv.innerHTML += `<p>Compass not supported on this device. Use a phone with a compass sensor.</p>`;
+                    }
+
+                    // 启动摄像头
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        navigator.mediaDevices.getUserMedia({ video: true })
+                            .then(stream => {
+                                const video = document.getElementById('video');
+                                if (video) {
+                                    video.srcObject = stream;
+                                    video.play();
+                                }
+                            })
+                            .catch(err => {
+                                if (resultsDiv) resultsDiv.innerHTML += `<p>Camera error: ${err}</p>`;
+                            });
+                    } else {
+                        if (resultsDiv) resultsDiv.innerHTML += `<p>Camera not supported on this device.</p>`;
+                    }
+                } else {
+                    if (resultsDiv) resultsDiv.innerHTML += `<p>Error: Compass elements not found.</p>`;
+                }
             }
-        }
+
+            // PWA 安装
+            let deferredPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                deferredPrompt = e;
+                const installButton = document.getElementById('installButton');
+                if (installButton) installButton.style.display = 'block';
+            });
+
+            function installApp() {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('User accepted the install');
+                        }
+                        deferredPrompt = null;
+                    });
+                }
+            }
+        });
     </script>
 </body>
 </html>
